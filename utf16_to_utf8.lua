@@ -1,44 +1,46 @@
 ﻿
 --utf16 to utf8
+--	from [Ko-Ta2142/lua_utf16: convert unicode(16le/be) ro utf8](https://github.com/Ko-Ta2142/lua_utf16)
+--	just package, and change interface by RobertL
 
-misc_utf16={}
+local private={}
 
-misc_utf16.littleendian = true	--current endiant
+private.littleendian = true	--current endiant
 
-function misc_utf16.band(v1,v2)
+function private.band(v1,v2)
 	-- lua 5.2
 	return bit32.band(v1,v2)
 	-- lua 5.3
 	-- return v1 & v2
 end
 
-function misc_utf16.rshift(v1,shift)
+function private.rshift(v1,shift)
 	-- lua 5.2
 	return bit32.rshift(v1,shift)
 	-- lua 5.3
 	-- return v1 >> shift
 end
 
-function misc_utf16.lshift(v1,shift)
+function private.lshift(v1,shift)
 	-- lua 5.2
 	return bit32.lshift(v1,shift)
 	-- lua 5.3
 	-- return v1 << shift
 end
 
-function misc_utf16.unpack16(buf,pos,littleendian)
+function private.unpack16(buf,pos,littleendian)
 	local c1,c2 = string.byte(buf,pos,pos+1)
 	if c1 == nil then c1 = 0 end
 	if c2 == nil then c2 = 0 end
 
-	if littleendian == misc_utf16.littleendian then
-		return misc_utf16.lshift(c1,8) + c2
+	if littleendian == private.littleendian then
+		return private.lshift(c1,8) + c2
 	else
-		return misc_utf16.lshift(c2,8) + c1
+		return private.lshift(c2,8) + c1
 	end
 end
 
-function misc_utf16.checkbom_le(s)
+function private.checkbom_le(s)
 	if string.len(s)<2 then
 		return false
 	end
@@ -48,7 +50,7 @@ function misc_utf16.checkbom_le(s)
 	return true
 end
 
-function misc_utf16.checkbom_be(s)
+function private.checkbom_be(s)
 	if string.len(s)<2 then
 		return false
 	end
@@ -58,25 +60,25 @@ function misc_utf16.checkbom_be(s)
 	return true
 end
 
-function misc_utf16.utf16to8(data,little)
+function private.utf16_to_utf8(data,little)
 	if little == nil then little = true end
 	-- bom check
 	local bom = 0
-	if misc_utf16.checkbom_le(data) then little = true; bom = 1 end
-	if misc_utf16.checkbom_be(data) then little = false; bom = 1 end
+	if private.checkbom_le(data) then little = true; bom = 1 end
+	if private.checkbom_be(data) then little = false; bom = 1 end
 	-- bom extract
 	if bom == 1 then
 		data = string.sub(data,3)
 	end
 	-- convert
 	if little then
-		return misc_utf16.convert(data , misc_utf16.utf16le_dec , misc_utf16.utf8_enc)
+		return private.convert(data , private.utf16le_dec , private.utf8_enc)
 	else
-		return misc_utf16.convert(data , misc_utf16.utf16be_dec , misc_utf16.utf8_enc)
+		return private.convert(data , private.utf16be_dec , private.utf8_enc)
 	end
 end
 
-function misc_utf16.convert(buf,decoder,encoder)
+function private.convert(buf,decoder,encoder)
 	local out = {}
 	local cp,len,pos
 	pos = 1
@@ -88,31 +90,31 @@ function misc_utf16.convert(buf,decoder,encoder)
 	return table.concat(out)
 end
 
-function misc_utf16.utf16le_dec(buf,pos)
-	local cp = misc_utf16.unpack16(buf,pos)
+function private.utf16le_dec(buf,pos)
+	local cp = private.unpack16(buf,pos)
 	pos = pos + 2	--uchar( 2byte)
 	if (cp >= 0xD800) and (cp <= 0xDFFF) then
-		local high = misc_utf16.lshift( cp - 0xD800,10 )
-		cp = misc_utf16.unpack16(buf,pos)
+		local high = private.lshift( cp - 0xD800,10 )
+		cp = private.unpack16(buf,pos)
 		pos = pos + 2	--uchar( 2byte)
 		cp = 0x10000 + high + cp - 0xDC00
 	end
 	return pos, cp
 end
 
-function misc_utf16.utf16be_dec(buf,pos)
-	local cp = misc_utf16.unpack16(buf,pos)
+function private.utf16be_dec(buf,pos)
+	local cp = private.unpack16(buf,pos)
 	pos = pos + 2	--uchar( 2byte)
 	if (cp >= 0xD800)and(cp <= 0xDFFF) then
-		local high = misc_utf16.lshift( cp - 0xD800,10 )
-		cp = misc_utf16.unpack16(buf,pos)
+		local high = private.lshift( cp - 0xD800,10 )
+		cp = private.unpack16(buf,pos)
 		pos = pos + 2	--uchar( 2byte)
 		 cp = 0x10000 + high + cp - 0xDC00
 	end
 	return pos, cp
 end
 
-function misc_utf16.utf8_enc(cp)
+function private.utf8_enc(cp)
 	local shift,mask
 	if cp <= 0x7F then
 		return string.char(cp)
@@ -131,16 +133,18 @@ function misc_utf16.utf8_enc(cp)
 
 	local ss = ""
 	local cc
-	cc = misc_utf16.rshift(cp,shift)
-	cc = misc_utf16.band(cc,0x3F)
+	cc = private.rshift(cp,shift)
+	cc = private.band(cc,0x3F)
 	ss = string.char(mask + cc)
 	shift = shift - 6
 	while shift >= 0 do
-		cc = misc_utf16.rshift(cp,shift)
-		cc = misc_utf16.band(cc,0x3F)
+		cc = private.rshift(cp,shift)
+		cc = private.band(cc,0x3F)
 		ss = ss..string.char(0x80 + cc)
 		shift = shift - 6
 	end
 
 	return ss
 end
+
+return private.utf16_to_utf8
